@@ -1,9 +1,13 @@
+use crossterm::{cursor, Result};
+use crossterm::terminal::{enable_raw_mode, disable_raw_mode, Clear, ClearType};
+use crossterm::style::{Color, SetForegroundColor, SetBackgroundColor, Print};
+
 use std::sync::{Arc, RwLock};
 use crate::block_tree::BlockTree;
 use std::sync::mpsc::{Sender, Receiver, channel};
 use crate::block::Block;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use crate::draw_block_hash;
+use std::io::stdout;
 
 pub struct Miner {
     id: u8,
@@ -26,7 +30,7 @@ impl Miner {
             n,
             sleep_ms: 100,
             block_int_ms: 2000,
-            my_turn_wait_ms: 6000,
+            my_turn_wait_ms: 10000,
             block_tree,
             to_network,
             from_network
@@ -42,7 +46,7 @@ impl Miner {
         loop {
             if let Ok(block) = self.from_network.try_recv() {
                 let mut store = self.block_tree.write().unwrap();
-                store.insert(block.clone());
+                store.insert(block);
             } else {
                 std::thread::sleep(Duration::from_millis(self.sleep_ms));
             }
