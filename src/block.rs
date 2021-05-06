@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::fmt::{Display, Formatter, Result};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, Eq, PartialEq)]
 pub struct Block {
@@ -11,6 +12,17 @@ pub struct Block {
     pub creator_signature: Vec<u8>,
     // fake for now
     pub verifier_signature: Option<Vec<u8>>,
+}
+
+impl Display for Block {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        let parent = hex::encode(&self.parent);
+        if parent.len() >= 4 {
+            write!(f, "miner: {}, parent: {}", self.miner, &parent[..4])
+        } else {
+            write!(f, "miner: {}, parent: null", self.miner)
+        }
+    }
 }
 
 impl Block {

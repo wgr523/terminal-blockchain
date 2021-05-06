@@ -16,7 +16,15 @@ impl BlockTree {
             }
             None => {
                 let number = block.number;
-                self.tip = block.clone();
+                if self.number_block.is_empty() {
+                    // if I don't have any block
+                    self.tip = block.clone();
+                } else {
+                    // only update if it's higher than tip
+                    if self.tip.number < number {
+                        self.tip = block.clone();
+                    }
+                }
                 let mut v = HashSet::new();
                 v.insert(block);
                 self.number_block.insert(number, v);

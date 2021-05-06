@@ -22,9 +22,13 @@ pub struct Network {
 
 impl Network {
 
-    pub fn set_delay(&mut self, from: u8, to: u8, delay: u64) {
+    pub fn set_single_delay(&mut self, from: u8, to: u8, delay: u64) {
         let d = self.artificial_delay.entry((from, to)).or_default();
         *d = delay;
+    }
+
+    pub fn set_delay(&mut self, delay: HashMap<(u8,u8), u64>) {
+        self.artificial_delay = delay;
     }
 
     pub fn genesis(&self)  -> Result<()> {

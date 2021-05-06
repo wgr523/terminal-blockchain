@@ -1,15 +1,18 @@
 #[macro_use]
 extern crate crossterm;
+#[macro_use]
+extern crate horrorshow;
 
 mod miner;
 mod block;
 mod block_tree;
 mod network;
+mod server;
 
-use crossterm::{cursor, Result};
+use crossterm::{cursor};
 use crossterm::terminal::{enable_raw_mode, disable_raw_mode, Clear, ClearType, ScrollUp, size};
 use crossterm::style::{Color, SetForegroundColor, Print};
-use std::io::{stdout, Write};
+use std::io::{stdout, Write, BufReader};
 use std::collections::HashMap;
 use crate::miner::Miner;
 use std::sync::mpsc::{channel, Sender};
@@ -17,17 +20,69 @@ use crate::network::Network;
 use crate::block::Block;
 use std::time::{Duration, Instant};
 use std::sync::{Arc, RwLock};
+use crate::block_tree::BlockTree;
+use std::str::FromStr;
+use std::error::Error;
+use std::fs::File;
 
 const N: u8 = 6;
 
-const MARGIN: u16 = 4;
 
 // pub fn draw_block_hash(id: u8, block: &Block) -> Result<()> {
 //     let mut stdout = stdout();
 //     execute!(stdout, cursor::MoveTo(10*id as u16,MARGIN+block.number as u16), Print(format!("{}", &hex::encode(block.digest())[..4])))
 // }
 
-fn main() -> Result<()> {
+fn start_simulation() -> Result<(Network, HashMap<u8, Arc<RwLock<BlockTree>>>), Box<dyn Error>> {
+    let mut stores = HashMap::new();
+    let (sender, receiver) = channel();
+    let mut senders: HashMap<u8, Sender<Block>> = Default::default();
+    for id in 0..N {
+        let (sender_2, receiver_2) = channel();
+        senders.insert(id, sender_2);
+        let (miner, store) = Miner::new(id, N, sender.clone(), receiver_2);
+        stores.insert(id, store);
+        miner.start();
+    }
+    let log = Arc::new(RwLock::new(String::new()));
+    let network = Network {
+        n: N,
+        from_miners: receiver,
+        senders,
+        artificial_delay: Default::default(),
+        log: log.clone(),
+    };
+    Ok((network, stores))
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let (mut network, stores) = start_simulation()?;
+    let addr = std::net::SocketAddr::from_str("127.0.0.1:3333").expect("Parse address error");
+    // Read the JSON contents of the file as an instance of `delay`.
+    let mut delay: HashMap<(u8,u8), u64> = {
+        if let Ok(file) = File::open("delay.json") {
+            let reader = BufReader::new(file);
+            let pretty_delay: Vec<(u8,u8,u64)> = serde_json::from_reader(reader)?;
+            pretty_delay.into_iter().map(|(i,j,k)|((i,j), k)).collect()
+        } else {
+            Default::default()
+        }
+    };
+    // for i in 0..N {
+    //     for j in 0..N {
+    //         delay.insert((i,j), 11000);
+    //     }
+    // }
+    server::Server::start(addr,stores, &delay);
+    network.set_delay(delay);
+    network.start();
+    loop {
+        std::thread::park();
+    }
+}
+/*
+fn _main() -> Result<()> {
+    const MARGIN: u16 = 4;
     let mut color_map = vec![Color::Green, Color::Blue, Color::Red, Color::Cyan, Color::Yellow, Color::Magenta];
     for _ in 0..200 {
         color_map.push(Color::White);
@@ -60,27 +115,30 @@ fn main() -> Result<()> {
         log: log.clone(),
     };
     // set artificial delay
-    for i in 0..N {
-        for j in 0..N {
-            network.set_delay(i,j,21000);
-        }
-    }
-    //network.set_delay(2,3,21000);
-    //network.set_delay(3,4,21000);
-    //network.set_delay(4,5,21000);
-    //network.set_delay(5,0,21000);
-    //network.set_delay(0,1,21000);
-    //network.set_delay(2,3,6500);
-    //network.set_delay(2,0,6500);
-    //network.set_delay(2,1,6500);
-    //network.set_delay(3,0,6500);
-    //network.set_delay(3,1,6500);
-    //network.set_delay(3,2,6500);
-    //network.set_delay(0,1,6500);
-    //network.set_delay(0,2,6500);
-    //network.set_delay(0,3,6500);
-    //network.set_delay(4,5,6500);
-    //network.set_delay(5,0,6500);
+    //for i in 0..N {
+    //    for j in 0..N {
+    //        network.set_single_delay(i,j,21000);
+    //    }
+    //}
+    network.set_single_delay(4,5,11000);
+    network.set_single_delay(5,0,11000);
+    network.set_single_delay(0,1,11000);
+    //network.set_single_delay(2,3,21000);
+    //network.set_single_delay(3,4,21000);
+    //network.set_single_delay(4,5,21000);
+    //network.set_single_delay(5,0,21000);
+    //network.set_single_delay(0,1,21000);
+    //network.set_single_delay(2,3,6500);
+    //network.set_single_delay(2,0,6500);
+    //network.set_single_delay(2,1,6500);
+    //network.set_single_delay(3,0,6500);
+    //network.set_single_delay(3,1,6500);
+    //network.set_single_delay(3,2,6500);
+    //network.set_single_delay(0,1,6500);
+    //network.set_single_delay(0,2,6500);
+    //network.set_single_delay(0,3,6500);
+    //network.set_single_delay(4,5,6500);
+    //network.set_single_delay(5,0,6500);
     queue!(stdout, cursor::MoveTo(0,0), Print("add artificial delay"))?;
     network.start();
     let (cols, rows) = size()?;
@@ -129,3 +187,4 @@ fn main() -> Result<()> {
     }
     Ok(())
 }
+*/
